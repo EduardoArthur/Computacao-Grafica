@@ -79,8 +79,8 @@ private:
 	static short readShort( FILE* infile );
 	static long readLong( FILE* infile );
 	static void skipChars( FILE* infile, int numChars );
-	static void RgbImage::writeLong( long data, FILE* outfile );
-	static void RgbImage::writeShort( short data, FILE* outfile );
+	static void writeLong( long data, FILE* outfile );
+	static void writeShort( short data, FILE* outfile );
 	
 	static unsigned char doubleToUnsignedChar( double x );
 

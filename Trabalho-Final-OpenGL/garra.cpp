@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <iostream>
 #include <stdlib.h>
-#include <GL/glut.h>
+#include <gl/glut.h>
 #include "RgbImage.h"
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -9,15 +9,30 @@
 
 using namespace std;
 
-char* filenameTexMetal1 = "./metalTexture1.bmp"; 
+char* filenameTexMetal1 = (char*)"./metalTexture1.bmp";
+char* filenameTexWheel = (char*)"./roda.bmp";
+char* filenameTexHubCap = (char*)"./hubcap_1_.bmp";
+char* filenameTexGlass = (char*)"./glass.bmp";
 
-GLuint _textureIdMetal1;
-GLuint _textureIdSphere; 
-GLuint _textureIdCylinder; 
-GLUquadric *quadSphere;
-GLUquadric *quadCylinder;
+GLuint _textureIdMetal;
+GLuint _textureIdSphere;
+GLuint _textureIdCylinder;
+GLuint _textureIdWheel;
+GLuint _textureIdHubCap;
+GLuint _textureIdGlass;
+
+GLUquadric* quadSphere;
+GLUquadric* quadCylinder;
+GLUquadric* quadWheel;
+
 
 bool textureOn = true;
+
+float diameterWheel = 0.3;
+float wheelMotionFront = 0;
+float wheelMotionBack = 0;
+float sanfonaMotionLeft = 0;
+float sanfonaMotionRight = 0;
 
 float diameterCylinder = 0.3;
 float diameterSphere = 0.4;
@@ -25,10 +40,21 @@ float sizeArm = 4.5;
 float sizeForearm = 3.0;
 float sizeHand = 2.0;
 float sizeClampPart = 1.0;
-float diameterBase = 2.0;
+float diameterBase = 1.0;
 float heightBase = 0.5;
 
-float eyeDistance = 20.0; 
+float headLength = 2.f;
+float headDiameter = 3.f;
+float ConeHeight = 0.6f;
+float wheelLink = ConeHeight * 1.5f;
+float eyeSize = 0.6f;
+float eyewidth = 0.3f;
+float offSet = 0.025f;
+
+float bodyDiameter = 2.0f;
+float bodyLength = 5.0f;
+
+float eyeDistance = 20.0;
 float eyeX;
 float eyeY;
 float eyeZ;
@@ -40,6 +66,9 @@ float angleForearm = 90.0;
 float angleHand = 0.0;
 float angleClampZ = 0.0;
 float angleClampY = 0.0;
+
+float pan_x = 0.0f, pan_y = 0.0f;
+float zoom = 2.0f;
 
 GLfloat lightposition[4] = { 0.0f, 30.0f, 0.0f, 0.0f };
 GLfloat luzAmbiente[4] = { 0.19, 0.19, 0.19, 0.0 };
@@ -54,16 +83,16 @@ void initLighting(void)
 	glEnable(GL_LIGHT0);
 	glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
 
-	// Especifica que a cor de fundo da janela ser� preta
+	// Especifica que a cor de fundo da janela será preta
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-	// Habilita o modelo de coloriza��o de Gouraud
+	// Habilita o modelo de colorização de Gouraud
 	glShadeModel(GL_SMOOTH);
 
 	// Ativa o uso da luz ambiente 
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, luzAmbiente);
 
-	// Define os par�metros da luz de n�mero 0
+	// Define os parâmetros da luz de número 0
 	glLightfv(GL_LIGHT0, GL_AMBIENT, luzAmbiente);
 	glLightfv(GL_LIGHT0, GL_POSITION, lightposition);
 
@@ -72,7 +101,7 @@ void initLighting(void)
 }
 
 //makes the image into a texture, and returns the id of the texture
-GLuint loadTexture(char *filename) {
+GLuint loadTexture(char* filename) {
 	GLuint textureId;
 
 	RgbImage theTexMap(filename); //Image with texture
@@ -95,9 +124,53 @@ GLuint loadTexture(char *filename) {
 void initRendering(void) {
 	quadSphere = gluNewQuadric();
 	quadCylinder = gluNewQuadric();
-	_textureIdMetal1 = loadTexture(filenameTexMetal1);
-	_textureIdCylinder = _textureIdMetal1;
-	_textureIdSphere = _textureIdMetal1;
+	_textureIdMetal = loadTexture(filenameTexMetal1);
+	_textureIdWheel = loadTexture(filenameTexWheel);
+	_textureIdHubCap = loadTexture(filenameTexHubCap);
+	_textureIdGlass = loadTexture(filenameTexGlass);
+}
+
+void handleMouse(int button, int state, int x, int y) {
+	switch (button) {
+	case GLUT_LEFT_BUTTON:
+		if (zoom > 0.2f) {
+			zoom = zoom - 0.1f;
+		}
+		glutPostRedisplay();
+		break;
+	case GLUT_RIGHT_BUTTON:
+		if (zoom < 100) {
+			zoom = zoom + 0.1f;
+		}
+		glutPostRedisplay();
+		break;
+	case 3:
+		break;
+	case 4:
+		break;
+	}
+
+}
+
+void handleSpecialFunc(int key, int xx, int yy) {
+	switch (key) {
+	case GLUT_KEY_RIGHT:
+		pan_x = pan_x + 0.1f;
+		glutPostRedisplay();
+		break;
+	case GLUT_KEY_LEFT:
+		pan_x = pan_x - 0.1f;
+		glutPostRedisplay();
+		break;
+	case GLUT_KEY_UP:
+		pan_y = pan_y + 0.1f;
+		glutPostRedisplay();
+		break;
+	case GLUT_KEY_DOWN:
+		pan_y = pan_y - 0.1f;
+		glutPostRedisplay();
+		break;
+	}
 }
 
 void handleKeypress(unsigned char key, int x, int y) {
@@ -108,7 +181,7 @@ void handleKeypress(unsigned char key, int x, int y) {
 		if (viewAngleZ < 180) viewAngleZ += 3;
 		glutPostRedisplay();
 		break;
-	case 'z': //Decrease view angle z axis
+	case 's': //Decrease view angle z axis
 		if (viewAngleZ > 0) viewAngleZ -= 3;
 		glutPostRedisplay();
 		break;
@@ -116,7 +189,7 @@ void handleKeypress(unsigned char key, int x, int y) {
 		if (viewAngleX > 0) viewAngleX -= 3;
 		glutPostRedisplay();
 		break;
-	case 's': //Increase view angle x axis
+	case 'd': //Increase view angle x axis
 		if (viewAngleX < 180) viewAngleX += 3;
 		glutPostRedisplay();
 		break;
@@ -150,6 +223,34 @@ void handleKeypress(unsigned char key, int x, int y) {
 		if (angleClampY > 0) angleClampY -= 3;
 		glutPostRedisplay();
 		break;
+	case 'c':
+		sanfonaMotionLeft -= 5;
+		if (sanfonaMotionLeft < -360) {
+			sanfonaMotionLeft += 360;
+		};
+		glutPostRedisplay();
+		break;
+	case 'x':
+		sanfonaMotionRight += 5;
+		if (sanfonaMotionLeft > 360) {
+			sanfonaMotionLeft -= 360;
+		};
+		glutPostRedisplay();
+		break;
+	case 'v':
+		wheelMotionFront -= 5;
+		if (wheelMotionFront < -360) {
+			wheelMotionFront += 360;
+		};
+		glutPostRedisplay();
+		break;
+	case 'b':
+		wheelMotionBack += 5;
+		if (wheelMotionBack > 360) {
+			wheelMotionBack -= 360;
+		};
+		glutPostRedisplay();
+		break;
 	}
 }
 
@@ -157,35 +258,36 @@ void handleResize(int w, int h) {
 	glViewport(0, 0, w, h);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluPerspective(60.0, (float)w / (float)h, 1.0, 50.0);
+	gluPerspective(60.0, (float)w / (float)h, 10.0, 50.0);
 }
 
-void drawCylinder(float diameter, float lenght) {
+void drawCylinder(float diameter, float lenght, GLuint textureName) {
 	if (textureOn) {
-		glBindTexture(GL_TEXTURE_2D, _textureIdCylinder);
+		glBindTexture(GL_TEXTURE_2D, textureName);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		gluQuadricTexture(quadCylinder, 1);
 	}
-	else 
+	else
 		gluQuadricTexture(quadCylinder, 0);
-	gluCylinder(quadCylinder, diameter, diameter, lenght, 40.0, lenght*30.0);
+	gluCylinder(quadCylinder, diameter, diameter, lenght, 40.0, lenght * 30.0);
 }
 
-void drawCone(float diameter, float lenght) {
+void drawCone(float diameter, float lenght, GLuint textureName) {
 	if (textureOn) {
-		glBindTexture(GL_TEXTURE_2D, _textureIdCylinder);
+		glBindTexture(GL_TEXTURE_2D, textureName);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		gluQuadricTexture(quadCylinder, 1);
-	} else
+	}
+	else
 		gluQuadricTexture(quadCylinder, 0);
-	gluCylinder(quadCylinder, diameter, 0, lenght, 40.0, lenght*30.0);
+	gluCylinder(quadCylinder, diameter, 0, lenght, 40.0, lenght * 30.0);
 }
 
-void drawDisk(float diameterInner, float diameterOuter) {
+void drawDisk(float diameterInner, float diameterOuter, GLuint textureName) {
 	if (textureOn) {
-		glBindTexture(GL_TEXTURE_2D, _textureIdCylinder);
+		glBindTexture(GL_TEXTURE_2D, textureName);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		gluQuadricTexture(quadCylinder, 1);
@@ -195,15 +297,223 @@ void drawDisk(float diameterInner, float diameterOuter) {
 	gluDisk(quadCylinder, diameterInner, diameterOuter, 40.0, 30.0);
 }
 
-void drawSphere(float diameter) {
+void drawSphere(float diameter, GLuint textureName) {
 	if (textureOn) {
-		glBindTexture(GL_TEXTURE_2D, _textureIdSphere);
+		glBindTexture(GL_TEXTURE_2D, textureName);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		gluQuadricTexture(quadSphere, 1);
-	} else
+	}
+	else
 		gluQuadricTexture(quadSphere, 0);
 	gluSphere(quadSphere, diameter, 40.0, 40.0);
+}
+
+void drawCube(float size, GLuint textureName) {
+	if (textureOn) {
+		glBindTexture(GL_TEXTURE_2D, textureName);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		gluQuadricTexture(quadCylinder, 1);
+	}
+	else
+		gluQuadricTexture(quadCylinder, 0);
+
+	glutSolidCube(size);
+}
+
+void drawSanfona(float Diameter, float Length, float ConeHeight) {
+	float sanfonaDiameter = Diameter / 3;
+	float sanfonaHeight = ConeHeight / 2;
+
+	glPushMatrix();
+	//Primeira parte da sanfona
+	drawCone(sanfonaDiameter, sanfonaHeight, _textureIdMetal);
+
+	glRotatef(180, 0.0f, 0.0f, 0.0f);
+
+	drawCone(sanfonaDiameter, sanfonaHeight, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, -ConeHeight);
+
+	//Segunda parte da sanfona
+	drawCone(sanfonaDiameter, sanfonaHeight, _textureIdMetal);
+
+	glRotatef(180, 0.0f, 0.0f, 0.0f);
+
+	drawCone(sanfonaDiameter, sanfonaHeight, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, -ConeHeight * 2);
+
+	//Terceira parte da sanfona
+	drawCone(sanfonaDiameter, sanfonaHeight, _textureIdMetal);
+
+	glRotatef(180, 0.0f, 0.0f, 0.0f);
+
+	drawCone(sanfonaDiameter, ConeHeight / 2, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, -ConeHeight * 2);
+
+	glPopMatrix();
+
+	glTranslatef(0.f, 0.f, -ConeHeight * 2);
+	drawCylinder(sanfonaDiameter / 2, sanfonaHeight * 8, _textureIdMetal);
+}
+
+void drawWheelLink() {
+	drawDisk(0, headDiameter / 4, _textureIdMetal);
+
+	drawCylinder(headDiameter / 4, wheelLink, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, wheelLink);
+
+	drawDisk(0, headDiameter / 4, _textureIdMetal);
+}
+
+void drawWheel() {
+	glTranslatef(0.0f, 0.0f, -ConeHeight);
+
+	glRotatef(wheelMotionFront, 0.0f, 0.0f, 1.0f);
+	glRotatef(wheelMotionBack, 0.0f, 0.0f, 1.0f);
+
+	glBindTexture(GL_TEXTURE_2D, _textureIdHubCap);
+	drawDisk(0, headDiameter / 2, _textureIdHubCap);
+
+	glBindTexture(GL_TEXTURE_2D, _textureIdWheel);
+	drawCylinder(headDiameter / 2, ConeHeight * 2, _textureIdWheel);
+
+	glTranslatef(0.0f, 0.0f, ConeHeight * 2);
+
+	glBindTexture(GL_TEXTURE_2D, _textureIdHubCap);
+	drawDisk(0, headDiameter / 2, _textureIdHubCap);
+}
+
+void drawClaw() {
+	// draws the base
+	drawCylinder(diameterBase, heightBase, _textureIdMetal);
+	glTranslatef(0.0f, 0.0f, heightBase);
+	drawDisk(diameterCylinder, diameterBase, _textureIdMetal);
+
+	// move to arm referential
+	glRotatef(angleArm, 0.0f, 0.0f, 1.0f);
+
+	//draws the arm
+	drawCylinder(diameterCylinder, sizeArm, _textureIdMetal);
+
+	// move to forearm referential
+	glTranslatef(0.0f, 0.0f, sizeArm + diameterSphere / 5);
+	glRotatef(angleForearm, 0.0f, 1.0f, 0.0f);
+
+	//draws the forearm
+	drawSphere(diameterSphere, _textureIdMetal);
+	glTranslatef(0.0f, 0.0f, diameterSphere / 5);
+	drawCylinder(diameterCylinder, sizeForearm, _textureIdMetal);
+
+	//move to clamp referential
+	glTranslatef(0.0f, 0.0f, sizeForearm + diameterSphere / 5);
+	glRotatef(angleClampZ, 0.0f, 0.0f, 1.0f);
+
+	//draws the clamp sphere
+	drawSphere(diameterSphere, _textureIdMetal);
+	glTranslatef(0.0f, 0.0f, diameterSphere / 2);
+
+	glPushMatrix();
+
+	//draws top part of clamp
+	glRotatef(angleClampY + 60, 0.0f, 1.0f, 0.0f);
+
+	drawCylinder(diameterCylinder / 3, sizeClampPart, _textureIdMetal);
+	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere / 15);
+	drawSphere(diameterSphere / 3, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
+	glRotatef(-60, 0.0f, 1.0f, 0.0f);
+
+	drawCylinder(diameterCylinder / 3, sizeClampPart, _textureIdMetal);
+	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere / 15);
+	drawSphere(diameterSphere / 3, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
+	glRotatef(-60, 0.0f, 1.0f, 0.0f);
+	drawCone(diameterCylinder / 3, sizeClampPart, _textureIdMetal);
+
+	glPopMatrix();
+	glPushMatrix();
+
+	//draws bottom part of clamp
+	glRotatef(-angleClampY - 60, 0.0f, 1.0f, 0.0f);
+
+	drawCylinder(diameterCylinder / 3, sizeClampPart, _textureIdMetal);
+	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere / 15);
+	drawSphere(diameterSphere / 3, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
+	glRotatef(60, 0.0f, 1.0f, 0.0f);
+
+	drawCylinder(diameterCylinder / 3, sizeClampPart, _textureIdMetal);
+	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere / 15);
+	drawSphere(diameterSphere / 3, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
+	glRotatef(60, 0.0f, 1.0f, 0.0f);
+	drawCone(diameterCylinder / 3, sizeClampPart, _textureIdMetal);
+
+	glPopMatrix();
+}
+
+void drawBody(float bodyDiameter, float bodyLenght) {
+
+	glColor3f(1, 1, 1);
+	drawCylinder(bodyDiameter, bodyLenght, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, -bodyDiameter / 10);
+
+	drawSphere(bodyDiameter, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, bodyLenght + (bodyDiameter / 10));
+	glRotatef(180, 0.0f, 0.0f, 0.0f);
+	drawCone(bodyDiameter, 1, _textureIdMetal);
+}
+
+void drawHead() {
+	drawCone(headDiameter, ConeHeight, _textureIdMetal);
+
+	glRotatef(180, 0.0f, 0.0f, 0.0f);
+
+	drawCylinder(headDiameter, headLength, _textureIdMetal);
+
+	glTranslatef(0.0f, 0.0f, headLength);
+
+	drawCone(headDiameter, ConeHeight, _textureIdMetal);
+
+	glPopMatrix();
+
+	glRotatef(-90, .0f, .0f, 1.0f);
+
+	glColor3f(1, 0, 0);
+	glPushMatrix();
+
+	glTranslatef(0.f, headDiameter - 0.25f, (headLength + bodyLength) / 2 + eyeSize / 2);
+
+	drawCylinder(eyewidth, eyeSize, _textureIdGlass);
+
+	glTranslatef(eyewidth, -offSet, 0.f);
+	drawCylinder(eyewidth, eyeSize, _textureIdGlass);
+
+	glTranslatef(eyewidth, -offSet, 0.f);
+	drawCylinder(eyewidth, eyeSize, _textureIdGlass);
+	glPopMatrix();
+
+	glPushMatrix();
+	glTranslatef(0.f, headDiameter - 0.25f, (headLength + bodyLength) / 2 + eyeSize / 2);
+
+	glTranslatef(-eyewidth, -offSet, 0.f);
+	drawCylinder(eyewidth, eyeSize, _textureIdGlass);
+
+	glTranslatef(-eyewidth, -offSet, 0.f);
+	drawCylinder(eyewidth, eyeSize, _textureIdGlass);
+	glColor3f(1, 1, 1);
+	glPopMatrix();
 }
 
 void drawScene(void) {
@@ -213,10 +523,13 @@ void drawScene(void) {
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	eyeX = eyeDistance * cos(viewAngleZ*PI / 180) * cos(viewAngleX*PI / 180);
-	eyeY = eyeDistance * cos(viewAngleZ*PI / 180) * sin(viewAngleX*PI / 180);
-	eyeZ = eyeDistance * sin(viewAngleZ*PI / 180);
-	if (viewAngleZ<90)
+	glTranslatef(pan_x, pan_y, -15.0f);
+	glScalef(zoom, zoom, 1.0f);
+
+	eyeX = eyeDistance * cos(viewAngleZ * PI / 180) * cos(viewAngleX * PI / 180);
+	eyeY = eyeDistance * cos(viewAngleZ * PI / 180) * sin(viewAngleX * PI / 180);
+	eyeZ = eyeDistance * sin(viewAngleZ * PI / 180);
+	if (viewAngleZ < 90)
 		gluLookAt(eyeX, eyeY, eyeZ, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
 	else
 		gluLookAt(eyeX, eyeY, eyeZ, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0);
@@ -226,75 +539,43 @@ void drawScene(void) {
 	// drawing color
 	glColor3f(1.0f, 1.0f, 1.0f);
 
-	// draws the base
-	drawCylinder(diameterBase, heightBase);
-	glTranslatef(0.0f, 0.0f, heightBase);
-	drawDisk(diameterCylinder, diameterBase);
-
-	// move to arm referential
-	glRotatef(angleArm, 0.0f, 0.0f, 1.0f);
-
-	//draws the arm
-	drawCylinder(diameterCylinder, sizeArm);
-
-	// move to forearm referential
-	glTranslatef(0.0f, 0.0f, sizeArm + diameterSphere / 5);
-	glRotatef(angleForearm, 0.0f, 1.0f, 0.0f);
-
-	//draws the forearm
-	drawSphere(diameterSphere);
-	glTranslatef(0.0f, 0.0f, diameterSphere / 5);
-	drawCylinder(diameterCylinder, sizeForearm);
-
-	//move to clamp referential
-	glTranslatef(0.0f, 0.0f,  sizeForearm + diameterSphere / 5);
-	glRotatef(angleClampZ, 0.0f, 0.0f, 1.0f);
-
-	//draws the clamp sphere
-	drawSphere(diameterSphere);
-	glTranslatef(0.0f, 0.0f, diameterSphere / 2);
-
 	glPushMatrix();
-
-	//draws top part of clamp
-	glRotatef(angleClampY+60, 0.0f, 1.0f, 0.0f);
-
-	drawCylinder(diameterCylinder / 3, sizeClampPart);
-	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere / 15);
-	drawSphere(diameterSphere / 3);
-
-	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
-	glRotatef(-60, 0.0f, 1.0f, 0.0f);
-
-	drawCylinder(diameterCylinder / 3, sizeClampPart);
-	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere/ 15);
-	drawSphere(diameterSphere / 3);
-
-	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
-	glRotatef(-60, 0.0f, 1.0f, 0.0f);
-	drawCone(diameterCylinder / 3, sizeClampPart);
-
+	drawBody(bodyDiameter, bodyLength);
 	glPopMatrix();
+
 	glPushMatrix();
+	glTranslatef(0.0f, 0.0f, bodyLength);
+	drawHead();
+	glPopMatrix();
 
-	//draws bottom part of clamp
-	glRotatef(-angleClampY - 60, 0.0f, 1.0f, 0.0f);
+	glPushMatrix();
+	glTranslatef(0.0f, 0.0f, bodyLength / 2);
+	glRotatef(90, 0.0f, 1.0f, 0.0f);
+	drawClaw();
+	glPopMatrix();
 
-	drawCylinder(diameterCylinder / 3, sizeClampPart);
-	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere / 15);
-	drawSphere(diameterSphere / 3);
+	glPushMatrix();
+	glTranslatef(0.0f, 0.0f, bodyLength / 2);
+	glRotatef(-90, 0.0f, 1.0f, 0.0f);
+	drawClaw();
+	glPopMatrix();
 
-	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
-	glRotatef(60, 0.0f, 1.0f, 0.0f);
+	glPushMatrix();
+	glRotatef(sanfonaMotionLeft, 0.0f, 0.0f, 1.0f);
+	glRotatef(sanfonaMotionRight, 0.0f, 0.0f, 1.0f);
+	glTranslatef(0.0f, 0.0f, -bodyLength / 2 - bodyDiameter / 10 - ConeHeight / 2);
+	drawSanfona(2.0f, 0.5f, 0.6f);
+	glPopMatrix();
 
-	drawCylinder(diameterCylinder / 3, sizeClampPart);
-	glTranslatef(0.0f, 0.0f, sizeClampPart + diameterSphere / 15);
-	drawSphere(diameterSphere / 3);
-
-	glTranslatef(0.0f, 0.0f, diameterSphere / 15);
-	glRotatef(60, 0.0f, 1.0f, 0.0f);
-	drawCone(diameterCylinder / 3, sizeClampPart);
-
+	glPushMatrix();
+	glRotatef(sanfonaMotionLeft, 0.0f, 0.0f, 1.0f);
+	glRotatef(sanfonaMotionRight, 0.0f, 0.0f, 1.0f);
+	glTranslatef(-wheelLink / 2, 0.0f, -bodyLength + 0.05f);
+	glRotatef(90, 1.0f, 0.0f, 0.0f);
+	glRotatef(90, 0.0f, 1.0f, 0.0f);
+	drawWheelLink();
+	glTranslatef(0.0f, -wheelLink, -wheelLink / 2);
+	drawWheel();
 	glPopMatrix();
 
 	glutSwapBuffers();
@@ -303,14 +584,16 @@ void drawScene(void) {
 int main(int argc, char** argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-	glutInitWindowSize(800, 800);
-	glutCreateWindow("Garra");
+	glutInitWindowSize(1200, 1200);
+	glutCreateWindow("Trabalho Final CG - Lucas e Eduardo");
 
 	initLighting();
 	initRendering();
 	glutDisplayFunc(drawScene);
 	glutKeyboardFunc(handleKeypress);
 	glutReshapeFunc(handleResize);
+	glutSpecialFunc(handleSpecialFunc);
+	glutMouseFunc(handleMouse);
 
 	glutMainLoop();
 	return 0;
